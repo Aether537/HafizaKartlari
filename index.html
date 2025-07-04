@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Hafıza Kartları</title>
+  <style>
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-user-select: none; -moz-user-select: none; user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px;
+      height: 100vh;
+      overflow: hidden;
+    }
+    h1 {
+      margin: 10px 0;
+      color: #ff4d4d;
+      font-size: min(8vw, 2rem);
+      text-align: center;
+      text-shadow: 0 0 10px rgba(255,0,0,0.3);
+    }
+    #stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      width: 100%;
+      max-width: 400px;
+      margin-bottom: 15px;
+      font-size: min(4vw, 1.1rem);
+    }
+    #stats div {
+      background: rgba(255,255,255,0.1);
+      padding: 8px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    #stats div.low-life {
+      background: rgba(255, 50, 50, 0.3);
+      animation: pulse 0.5s infinite alternate;
+    }
+    #gameBoard {
+      display: grid;
+      gap: 5px;
+      padding: 10px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      width: min(95vmin, 500px);
+      height: min(95vmin, 500px);
+      margin: 0 auto;
+    }
+    .card {
+      position: relative;
+      perspective: 1000px;
+      cursor: pointer;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .card-inner {
+      width: 100%;
+      height: 100%;
+      transition: transform 0.5s;
+      transform-style: preserve-3d;
+    }
+    .card.flipped .card-inner {
+      transform: rotateY(180deg);
+    }
+    .card-front, .card-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .card-front {
+      background: linear-gradient(135deg, #4e54c8, #8f94fb);
+      color: white;
+      font-size: min(5vw, 1.8rem);
+    }
+    .card-back {
+      background: linear-gradient(135deg, #ff416c, #ff4b2b);
+      transform: rotateY(180deg);
+      color: white;
+      font-size: min(8vw, 3rem);
+    }
+    .card.matched {
+      opacity: 0.6;
+      pointer-events: none;
+      animation: bounce 0.5s;
+    }
+    #settingsBtn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ff5e62, #ff9966);
+      color: white;
+      border: none;
+      font-size: 1.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      z-index: 1000;
+    }
+    #levelComplete {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(135deg, #ff416c, #ff4b2b);
+      color: white;
+      padding: 20px;
+      border-radius: 15px;
+      font-size: 1.5rem;
+      text-align: center;
+      z-index: 1002;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.05); }
+    }
+    @keyframes bounce {
+      0%, 100% { transform: scale(0.95); }
+      50% { transform: scale(1.05); }
+    }
+  </style>
+</head>
+<body>
+  <h1>🧠 Hafıza Kartları</h1>
+  <div id="stats">
+    <div>Level: <span id="levelDisplay">1</span></div>
+    <div>Can: <span id="lifeDisplay">5</span></div>
+    <div>Süre: <span id="timeDisplay">0</span>s</div>
+    <div>Skor: <span id="scoreDisplay">0</span></div>
+  </div>
+  <div id="gameBoard"></div>
+  
+  <button id="settingsBtn">⏸️</button>
+  
+  <div id="levelComplete">Level Tamamlandı!</div>
+
+  <script>
+    // Oyun ayarları
+    const config = {
+      levelTimes: [20, 140, 240, 320, 400, 500, 600, 680, 725, 829],
+      levelSizes: [2, 4, 6, 6, 8, 8, 10, 10, 12, 12], // SADECE ÇİFT SAYILAR
+      pointPerLevel: [20, 30, 45, 60, 80, 100, 125, 150, 180, 220],
+      emojis: ['🍎','🍌','🍇','🍓','🥝','🍍','🥥','🍑','🍒','🍉','🍊','🍋','🍏','🥭','🍈','🥑','🥦','🌽','🥕','🧄','🍠','🍆','🥬','🍅','🥒','🥜','🌰','🍄','🥔','🌶️','🥚','🧀','🍔','🍟','🍕','🌭','🍿','🧂','🥨','🍞','🥐','🥯','🧇','🥞','🧈','🍳','🥓','🍖','🍗','🥩','🍤','🦪','🍣','🍱','🍛','🍜','🍝','🍠','🍢','🍡','🍦','🍧','🍨','🍩','🍪','🎂','🍰','🧁','🥧','🍫','🍬','🍭','🍮','🍯','🥛','🍼','☕','🍵','🧃','🥤','🍶','🍾','🍷','🍸','🍹','🍺','🍻','🥂','🥃','🧉','🧊','🥢','🍽️','🍴','🥄']
+    };
+
+    // Oyun durumu
+    const savedState = localStorage.getItem('memoryGameState');
+    const state = savedState ? JSON.parse(savedState) : {
+      level: 1,
+      life: 5,
+      score: 0,
+      timeLeft: 0,
+      matchedCards: [],
+      timer: null,
+      isPaused: false
+    };
+
+    function saveGameState() {
+      localStorage.setItem('memoryGameState', JSON.stringify({
+        level: state.level,
+        life: state.life,
+        score: state.score,
+        timeLeft: state.timeLeft,
+        matchedCards: state.matchedCards,
+        isPaused: state.isPaused
+      }));
+    }
+
+    const elements = {
+      level: document.getElementById('levelDisplay'),
+      life: document.getElementById('lifeDisplay'),
+      time: document.getElementById('timeDisplay'),
+      score: document.getElementById('scoreDisplay'),
+      board: document.getElementById('gameBoard'),
+      complete: document.getElementById('levelComplete'),
+      settingsBtn: document.getElementById('settingsBtn')
+    };
+
+    function getLevelConfig() {
+      return {
+        size: config.levelSizes[state.level - 1] || 2,
+        time: config.levelTimes[state.level - 1] || 20,
+        pointPerMatch: config.pointPerLevel[state.level - 1] || 20
+      };
+    }
+
+    function createBoard() {
+      const { size } = getLevelConfig();
+      const totalPairs = (size * size) / 2;
+      
+      elements.board.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+      elements.board.innerHTML = '';
+
+      const pairs = config.emojis.slice(0, totalPairs);
+      let cards = [];
+      
+      // Her emojiden 2 tane ekle
+      pairs.forEach(emoji => {
+        cards.push(emoji, emoji);
+      });
+
+      // Kartları karıştır
+      for (let i = cards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [cards[i], cards[j]] = [cards[j], cards[i]];
+      }
+
+      // Kartları oluştur
+      cards.forEach(emoji => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.value = emoji;
+        
+        const isMatched = state.matchedCards.includes(emoji);
+        if (isMatched) {
+          card.classList.add('matched');
+        }
+        
+        card.innerHTML = `
+          <div class="card-inner">
+            <div class="card-front">${isMatched ? emoji : '?'}</div>
+            <div class="card-back">${emoji}</div>
+          </div>`;
+          
+        if (!isMatched) {
+          card.addEventListener('click', () => handleCardClick(card));
+        }
+        
+        elements.board.appendChild(card);
+      });
+    }
+
+    function handleCardClick(card) {
+      if (state.isPaused) return;
+      if (card.classList.contains('flipped') || card.classList.contains('matched')) return;
+
+      card.classList.add('flipped');
+      
+      const flippedCards = document.querySelectorAll('.card.flipped:not(.matched)');
+      
+      if (flippedCards.length === 2) {
+        checkMatch(flippedCards[0], flippedCards[1]);
+      }
+      saveGameState();
+    }
+
+    function checkMatch(card1, card2) {
+      if (card1.dataset.value === card2.dataset.value) {
+        card1.classList.add('matched');
+        card2.classList.add('matched');
+        state.matchedCards.push(card1.dataset.value);
+        
+        state.score += getLevelConfig().pointPerMatch;
+        updateStats();
+        
+        if (document.querySelectorAll('.card.matched').length === (getLevelConfig().size * getLevelConfig().size)) {
+          completeLevel();
+        }
+      } else {
+        setTimeout(() => {
+          card1.classList.remove('flipped');
+          card2.classList.remove('flipped');
+        }, 1000);
+      }
+      saveGameState();
+    }
+
+    function completeLevel() {
+      clearInterval(state.timer);
+      
+      const bonus = Math.floor(state.timeLeft * 0.2);
+      state.score += bonus;
+      
+      elements.complete.textContent = `Level ${state.level} Tamamlandı! +${bonus} Bonus`;
+      elements.complete.style.display = 'block';
+      
+      setTimeout(() => {
+        elements.complete.style.display = 'none';
+        nextLevel();
+      }, 2000);
+    }
+
+    function nextLevel() {
+      state.level++;
+      state.matchedCards = [];
+      state.timeLeft = getLevelConfig().time;
+      
+      if (state.level > 10) {
+        alert(`Tebrikler! Tüm levelleri tamamladınız. Skorunuz: ${state.score}`);
+        resetGame();
+      } else {
+        startLevel();
+      }
+      saveGameState();
+    }
+
+    function startLevel() {
+      clearInterval(state.timer);
+      state.timeLeft = getLevelConfig().time;
+      createBoard();
+      updateStats();
+      startTimer();
+      saveGameState();
+    }
+
+    function startTimer() {
+      state.timer = setInterval(() => {
+        if (!state.isPaused) {
+          state.timeLeft--;
+          updateStats();
+          
+          if (state.timeLeft <= 0) {
+            clearInterval(state.timer);
+            state.life--;
+            
+            if (state.life <= 0) {
+              alert(`Oyun Bitti! Skorunuz: ${state.score}`);
+              resetGame();
+            } else {
+              state.timeLeft = getLevelConfig().time;
+              state.matchedCards = [];
+              startLevel();
+            }
+          }
+          saveGameState();
+        }
+      }, 1000);
+    }
+
+    function updateStats() {
+      elements.level.textContent = state.level;
+      elements.life.textContent = state.life;
+      elements.score.textContent = state.score;
+      elements.time.textContent = state.timeLeft;
+      
+      if (state.life <= 2) {
+        document.querySelector('#stats div:nth-child(2)').classList.add('low-life');
+      } else {
+        document.querySelector('#stats div:nth-child(2)').classList.remove('low-life');
+      }
+    }
+
+    function resetGame() {
+      localStorage.removeItem('memoryGameState');
+      state.level = 1;
+      state.life = 5;
+      state.score = 0;
+      state.timeLeft = 0;
+      state.matchedCards = [];
+      state.isPaused = false;
+      elements.settingsBtn.textContent = "⏸️";
+      startLevel();
+    }
+
+    elements.settingsBtn.addEventListener('click', () => {
+      state.isPaused = !state.isPaused;
+      if (state.isPaused) {
+        clearInterval(state.timer);
+        elements.settingsBtn.textContent = "▶️";
+      } else {
+        startTimer();
+        elements.settingsBtn.textContent = "⏸️";
+      }
+      saveGameState();
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      document.addEventListener('touchstart', function(){}, {passive: true});
+      
+      let startY;
+      document.addEventListener('touchstart', e => {
+        startY = e.touches[0].clientY;
+      }, {passive: true});
+      
+      document.addEventListener('touchmove', e => {
+        if (startY && e.touches[0].clientY - startY > 100) {
+          if (confirm("Oyunu yeniden başlatmak istiyor musunuz?")) {
+            resetGame();
+          }
+          startY = null;
+        }
+      }, {passive: true});
+      
+      if (savedState) {
+        state.level = JSON.parse(savedState).level;
+        state.life = JSON.parse(savedState).life;
+        state.score = JSON.parse(savedState).score;
+        state.timeLeft = JSON.parse(savedState).timeLeft;
+        state.matchedCards = JSON.parse(savedState).matchedCards || [];
+        state.isPaused = JSON.parse(savedState).isPaused || false;
+        
+        updateStats();
+        startLevel();
+        
+        if (state.isPaused) {
+          elements.settingsBtn.textContent = "▶️";
+        }
+      } else {
+        startLevel();
+      }
+    });
+
+    window.addEventListener('beforeunload', saveGameState);
+  </script>
+</body>
+</html>
